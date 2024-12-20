@@ -1,0 +1,30 @@
+pipeline {
+    agent any
+    stages {
+        stage('Update Server') {
+            steps {
+                withCredentials([string(credentialsId: 'sudo-password-id', variable: 'SUDO_PASSWORD')]) {
+                    sh '''
+                    echo "${SUDO_PASSWORD}" | sudo -S apt update -y \
+                    && echo "${SUDO_PASSWORD}" | sudo -S apt upgrade -y
+                    '''
+                }
+            }
+        }
+        stage('Install Nginx') {
+            steps {
+                withCredentials([string(credentialsId: 'sudo-password-id', variable: 'SUDO_PASSWORD')]) {
+                    sh '''
+                    echo "${SUDO_PASSWORD}" | sudo -S apt install -y nginx wget unzip
+                    '''
+                }
+                sh 'echo "my first text written by Jenkins" > myfile.txt'
+            }
+        }
+        stage('List Files') {
+            steps {
+                sh 'ls -l'
+            }
+        }
+    }
+}
