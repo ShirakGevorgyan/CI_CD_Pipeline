@@ -1,30 +1,64 @@
 pipeline {
     agent any
+
+    environment {
+        TERRAFORM_DIR = '.' 
+    }
+
     stages {
-        stage('Update Server') {
+        stage('Checkout') {
             steps {
-                withCredentials([string(credentialsId: 'sudo-password-id', variable: 'SUDO_PASSWORD')]) {
-                    sh '''
-                    echo "${SUDO_PASSWORD}" | sudo -S apt update -y \
-                    && echo "${SUDO_PASSWORD}" | sudo -S apt upgrade -y
-                    '''
+                echo 'Cloning the repository...'
+                checkout scm
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                echo 'Initializing Terraform...'
+                sh """
+                cd $TERRAFORM_DIR
+                terraform init
+                """
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                echo 'Generating Terraform Plan...'
+                sh """
+                cd $TERRAFORM_DIR
+                terraform plan -out=tfplan
+                """
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                script {
+                    echo 'Applying Terraform Changes...'
+                    sh """
+                    cd $TERRAFORM_DIR
+                    terraform apply -auto-approve tfplan
+                    """
                 }
             }
         }
-        stage('Install Nginx') {
-            steps {
-                withCredentials([string(credentialsId: 'sudo-password-id', variable: 'SUDO_PASSWORD')]) {
-                    sh '''
-                    echo "${SUDO_PASSWORD}" | sudo -S apt install -y nginx wget unzip
-                    '''
-                }
-                sh 'echo "my first text written by Jenkins" > myfile.txt'
-            }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up...'
+            sh """
+            cd $TERRAFORM_DIR
+            rm -f tfplan
+            """
         }
-        stage('List Files') {
-            steps {
-                sh 'ls -l'
-            }
+        success {
+            echo 'Terraform changes applied successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Please check the logs.'
         }
     }
 }
