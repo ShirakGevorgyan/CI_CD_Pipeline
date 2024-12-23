@@ -1,10 +1,5 @@
 pipeline {
     agent any
-
-    environment {
-        TERRAFORM_DIR = '.' 
-    }
-
     stages {
         stage('Checkout') {
             steps {
@@ -12,50 +7,45 @@ pipeline {
                 checkout scm
             }
         }
-
-        stage('Terraform Init') {
-            steps {
-                echo 'Initializing Terraform...'
-                sh """
-                cd $TERRAFORM_DIR
-                terraform init
-                """
-            }
-        }
-
-        stage('Terraform Plan') {
-            steps {
-                echo 'Generating Terraform Plan...'
-                sh """
-                cd $TERRAFORM_DIR
-                terraform plan -out=tfplan
-                """
-            }
-        }
-
-        stage('Terraform Apply') {
+        stage('Prepare Environment') {
             steps {
                 script {
-                    echo 'Applying Terraform Changes...'
-                    sh """
-                    cd $TERRAFORM_DIR
-                    terraform apply -auto-approve tfplan
-                    """
+                    sh 'mkdir -p ~/.ssh'
+                    sh 'cp keys/id_rsa.pub ~/.ssh/id_rsa.pub'
+                    sh 'chmod 600 ~/.ssh/id_rsa.pub'
+                    sh 'echo "Public key copied to Jenkins environment."'
                 }
             }
         }
+        stage('Terraform Init') {
+            steps {
+                echo 'Initializing Terraform...'
+                sh '''
+                    export TF_VAR_public_key_path=$WORKSPACE/keys/id_rsa.pub
+                    terraform init
+                '''
+            }
+        }
+        stage('Terraform Plan') {
+            steps {
+                echo 'Planning Terraform changes...'
+                sh 'terraform plan'
+            }
+        }
+        stage('Terraform Apply') {
+            steps {
+                echo 'Applying Terraform changes...'
+                sh 'terraform apply -auto-approve'
+            }
+        }
     }
-
     post {
         always {
             echo 'Cleaning up...'
-            sh """
-            cd $TERRAFORM_DIR
-            rm -f tfplan
-            """
+            sh 'rm -f tfplan'
         }
         success {
-            echo 'Terraform changes applied successfully!'
+            echo 'Pipeline succeeded.'
         }
         failure {
             echo 'Pipeline failed. Please check the logs.'
